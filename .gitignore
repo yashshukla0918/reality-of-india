@@ -30,3 +30,10 @@ package-lock.json
 .env.test.local
 .env.production.local
 .env.production
+node_modules/
+dist/
+dist-versions/
+.env
+.DS_Store
+*.log
+coverage/

@@ -7,8 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "version-build": "node scripts/version-build.js",
-    "deploy": "npm run build && gh-pages -d dist"
+
+    "release:patch": "npm version patch && node scripts/release.js && git push --follow-tags",
+    "release:minor": "npm version minor && node scripts/release.js && git push --follow-tags",
+    "release:major": "npm version major && node scripts/release.js && git push --follow-tags"
   },
   "homepage": "https://yashshukla0918.github.io/reality-of-india",
   "dependencies": {

@@ -17,6 +17,7 @@ function AppContent() {
     selectedDistrict: null,
     selectedStateName: null,
   });
+  const [panelOpen, setPanelOpen] = useState<boolean>(true);
   const { isLoading, error } = useDataLoading();
 
   const handleStateSelect = (stateName: string) => {
@@ -57,13 +58,22 @@ function AppContent() {
           </button>
         </div>
       )}
-      <header>{APP_NAME.label}</header>
+      <header>{APP_NAME.label}
+        <button 
+          className="panel-toggle-btn" 
+          onClick={() => setPanelOpen(!panelOpen)}
+          title={panelOpen ? "Close panel" : "Open panel"}
+        >
+          {panelOpen ? "✕" : "≡"}
+        </button>
+      </header>
       <MapView
         selectionState={selectionState}
         onStateSelect={handleStateSelect}
         onDistrictSelect={handleDistrictSelect}
       />
       <SidePanel
+        isOpen={panelOpen}
         selectionState={selectionState}
         onReset={handleReset}
         onStateSelect={handleStateSelect}

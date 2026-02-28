@@ -12,6 +12,7 @@ interface SearchItem {
 }
 
 interface SidePanelProps {
+  isOpen: boolean;
   selectionState: SelectionState;
   onReset: () => void;
   onStateSelect: (stateName: string) => void;
@@ -19,6 +20,7 @@ interface SidePanelProps {
 }
 
 export default function SidePanel({
+  isOpen,
   selectionState,
   onReset,
   onStateSelect,
@@ -125,7 +127,7 @@ export default function SidePanel({
       : selectionState.selectedState || "None";
 
   return (
-    <div className="side-panel">
+    <div className={`side-panel ${isOpen ? "open" : "closed"}`}>
       <div className="state-display">
         <strong>Selected:</strong> <span className="selected-name">{displayText}</span>
       </div>

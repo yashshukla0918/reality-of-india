@@ -14,7 +14,7 @@
 
     "version-build": "node scripts/version-build.js",
     "deploy": "npm run build && gh-pages -d dist",
-    "gh-pages-deploy": "pnpm run version-build && npm run deploy"
+    "gh-pages-deploy": "npm run version-build && npm run deploy"
   },
   "homepage": "https://yashshukla0918.github.io/reality-of-india",
   "dependencies": {

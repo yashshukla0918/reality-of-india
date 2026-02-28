@@ -374,8 +374,8 @@ header {
     position: fixed;
     top: 0;
     right: 0;
-    width: 100%;
-    max-width: 320px;
+    width: 85vw;
+    max-width: 300px;
     height: 100dvh;
     background: #1e293b;
     padding: 20px;
@@ -386,7 +386,6 @@ header {
     transition: transform 0.3s ease, visibility 0.3s ease;
     max-height: 100dvh;
     overflow-y: auto;
-    top: 0;
     padding-top: 24px;
   }
 
@@ -493,8 +492,8 @@ header {
   }
 
   .side-panel {
-    max-width: 100%;
-    width: 100%;
+    max-width: 280px;
+    width: 90vw;
     padding: 16px;
   }
 

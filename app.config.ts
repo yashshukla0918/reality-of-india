@@ -1,0 +1,1 @@
+export const APP_NAME = {name: "reality-of-india", label: "Reality Of India"} 

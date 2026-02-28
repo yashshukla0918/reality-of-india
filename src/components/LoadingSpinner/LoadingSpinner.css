@@ -41,3 +41,24 @@
   margin: 0;
   font-weight: 500;
 }
+
+/* ===== RESPONSIVE SPINNER ===== */
+@media (max-width: 767px) {
+  .spinner-ring {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #334155;
+    border-top: 3px solid #3b82f6;
+  }
+
+  .spinner-text {
+    font-size: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner-ring {
+    animation: none;
+    border-top-color: #334155;
+  }
+}

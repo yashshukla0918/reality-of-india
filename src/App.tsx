@@ -78,6 +78,7 @@ function AppContent() {
         onReset={handleReset}
         onStateSelect={handleStateSelect}
         onDistrictSelect={handleDistrictSelect}
+        onClose={() => setPanelOpen(false)}
       />
     </>
   );

@@ -17,6 +17,7 @@ interface SidePanelProps {
   onReset: () => void;
   onStateSelect: (stateName: string) => void;
   onDistrictSelect: (districtName: string, stateName: string) => void;
+  onClose?: () => void;
 }
 
 export default function SidePanel({
@@ -25,6 +26,7 @@ export default function SidePanel({
   onReset,
   onStateSelect,
   onDistrictSelect,
+  onClose,
 }: SidePanelProps) {
   const [searchValue, setSearchValue] = useState<string>("");
   const debouncedSearchValue = useDebounce(searchValue, 100);
@@ -127,43 +129,52 @@ export default function SidePanel({
       : selectionState.selectedState || "None";
 
   return (
-    <div className={`side-panel ${isOpen ? "open" : "closed"}`}>
-      <div className="state-display">
-        <strong>Selected:</strong> <span className="selected-name">{displayText}</span>
-      </div>
-
-      <div className="dropdown" ref={dropdownRef}>
-        <input
-          type="text"
-          placeholder="Search state or district..."
-          value={searchValue}
-          onChange={(e) => handleSearch(e.target.value)}
-          onFocus={() => setDropdownOpen(true)}
-          className="search-input"
+    <>
+      {isOpen && (
+        <div 
+          className="side-panel-backdrop"
+          onClick={onClose}
+          role="presentation"
         />
-        {dropdownOpen && filteredItems.length > 0 && (
-          <div className="dropdown-list">
-            {filteredItems.map((item, idx) => (
-              <div
-                key={idx}
-                className="dropdown-item"
-                onClick={() => handleSelectItem(item)}
-              >
-                {item.name}
-              </div>
-            ))}
-          </div>
-        )}
-        {dropdownOpen && filteredItems.length === 0 && searchValue && (
-          <div className="dropdown-list">
-            <div className="dropdown-item">No results found</div>
-          </div>
-        )}
-      </div>
+      )}
+      <div className={`side-panel ${isOpen ? "open" : "closed"}`}>
+        <div className="state-display">
+          <strong>Selected:</strong> <span className="selected-name">{displayText}</span>
+        </div>
 
-      <button className="reset-btn" onClick={handleReset}>
-        Reset
-      </button>
-    </div>
+        <div className="dropdown" ref={dropdownRef}>
+          <input
+            type="text"
+            placeholder="Search state or district..."
+            value={searchValue}
+            onChange={(e) => handleSearch(e.target.value)}
+            onFocus={() => setDropdownOpen(true)}
+            className="search-input"
+          />
+          {dropdownOpen && filteredItems.length > 0 && (
+            <div className="dropdown-list">
+              {filteredItems.map((item, idx) => (
+                <div
+                  key={idx}
+                  className="dropdown-item"
+                  onClick={() => handleSelectItem(item)}
+                >
+                  {item.name}
+                </div>
+              ))}
+            </div>
+          )}
+          {dropdownOpen && filteredItems.length === 0 && searchValue && (
+            <div className="dropdown-list">
+              <div className="dropdown-item">No results found</div>
+            </div>
+          )}
+        </div>
+
+        <button className="reset-btn" onClick={handleReset}>
+          Reset
+        </button>
+      </div>
+    </>
   );
 }

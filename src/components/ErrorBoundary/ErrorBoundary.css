@@ -9,6 +9,7 @@
   align-items: center;
   justify-content: center;
   z-index: 9999;
+  padding: 16px;
 }
 
 .error-container {
@@ -16,9 +17,22 @@
   padding: 40px;
   border-radius: 12px;
   max-width: 500px;
+  width: 100%;
   text-align: center;
   border: 1px solid #334155;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .error-container h2 {
@@ -45,6 +59,10 @@
   font-size: 14px;
   font-weight: 600;
   transition: all 0.2s ease;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .error-retry-btn:hover {
@@ -54,4 +72,59 @@
 
 .error-retry-btn:active {
   transform: translateY(0);
+}
+
+/* ===== RESPONSIVE ERROR CONTAINER ===== */
+@media (max-width: 767px) {
+  .error-boundary {
+    padding: 16px;
+  }
+
+  .error-container {
+    padding: 24px;
+    border-radius: 8px;
+  }
+
+  .error-container h2 {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+
+  .error-container p {
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+
+  .error-retry-btn {
+    padding: 10px 20px;
+    font-size: 13px;
+    width: 100%;
+  }
+}
+
+@media (max-width: 479px) {
+  .error-container {
+    padding: 16px;
+  }
+
+  .error-container h2 {
+    font-size: 16px;
+    margin-bottom: 10px;
+  }
+
+  .error-container p {
+    font-size: 12px;
+    margin-bottom: 14px;
+  }
+
+  .error-retry-btn {
+    padding: 8px 16px;
+    font-size: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .error-container {
+    animation: none;
+  }
 }

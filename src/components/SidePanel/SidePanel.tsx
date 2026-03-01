@@ -1,15 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { loadStates, loadDistricts } from "../../services/dataService";
-import { useDataLoading } from "../DataLoadingProvider/DataLoadingContext";
-import { useDebounce } from "../../hooks/useDebounce";
+import { useSearchData, type SearchItem } from "../../hooks/useSearchData";
 import type { SelectionState } from "../../types/geo";
-
-interface SearchItem {
-  name: string;
-  type: "state" | "district";
-  stateName?: string;
-  districtName?: string;
-}
 
 interface SidePanelProps {
   isOpen: boolean;
@@ -29,66 +20,9 @@ export default function SidePanel({
   onClose,
 }: SidePanelProps) {
   const [searchValue, setSearchValue] = useState<string>("");
-  const debouncedSearchValue = useDebounce(searchValue, 100);
   const [dropdownOpen, setDropdownOpen] = useState<boolean>(false);
-  const [items, setItems] = useState<SearchItem[]>([]);
-  const [filteredItems, setFilteredItems] = useState<SearchItem[]>([]);
+  const { filteredItems } = useSearchData(searchValue);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { setError } = useDataLoading();
-
-  // Load search items
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const states = await loadStates();
-        const districts = await loadDistricts();
-
-        const stateItems: SearchItem[] = states.map((f: any) => ({
-          name: f.properties.NAME_1 || f.properties.st_nm,
-          type: "state" as const,
-        }));
-
-        const districtItems: SearchItem[] = [];
-        Object.entries(districts).forEach(([stateName, districtList]: any) => {
-          districtList.forEach((district: any) => {
-            districtItems.push({
-              name: `${district.properties.DISTRICT} (${stateName})`,
-              type: "district" as const,
-              stateName,
-              districtName: district.properties.DISTRICT,
-            });
-          });
-        });
-
-        const allItems = [...stateItems, ...districtItems];
-        setItems(allItems);
-        setFilteredItems(allItems);
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : "Failed to load search data";
-        setError(errorMsg);
-        console.error("Error loading search data:", err);
-      }
-    };
-
-    loadData();
-  }, [setError]);
-
-  // Filter items when debounced search value changes
-  useEffect(() => {
-    const filter = debouncedSearchValue.toLowerCase();
-    setFilteredItems(
-      items.filter((item) => item.name.toLowerCase().includes(filter))
-    );
-  }, [debouncedSearchValue, items]);
-
-  // Handle search input
-  const handleSearch = (value: string) => {
-    setSearchValue(value);
-    const filter = value.toLowerCase();
-    setFilteredItems(
-      items.filter((item) => item.name.toLowerCase().includes(filter))
-    );
-  };
 
   // Handle item selection
   const handleSelectItem = (item: SearchItem) => {
@@ -147,8 +81,13 @@ export default function SidePanel({
             type="text"
             placeholder="Search state or district..."
             value={searchValue}
-            onChange={(e) => handleSearch(e.target.value)}
+            onChange={(e) => setSearchValue(e.target.value)}
             onFocus={() => setDropdownOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setDropdownOpen(false);
+              }
+            }}
             className="search-input"
           />
           {dropdownOpen && filteredItems.length > 0 && (

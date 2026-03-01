@@ -7,11 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-
     "release:patch": "npm version patch && node scripts/release.js && git push --follow-tags",
     "release:minor": "npm version minor && node scripts/release.js && git push --follow-tags",
     "release:major": "npm version major && node scripts/release.js && git push --follow-tags",
-
     "version-build": "node scripts/version-build.js",
     "deploy": "npm run build && gh-pages -d dist",
     "gh-pages-deploy": "npm run version-build && npm run deploy"
@@ -20,7 +18,8 @@
   "dependencies": {
     "leaflet": "^1.9.4",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "react-icons": "^5.5.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

@@ -1,5 +1,4 @@
 import {
-  fetchAirQuality,
   fetchAirQualityByCoordinates,
   fetchCurrentWeather,
   fetchGDP,
@@ -9,7 +8,6 @@ import {
   fetchLifeExpectancy,
   fetchLiteracyRate,
   fetchUnemployment,
-  type OpenAQResponse,
   type WorldBankResponse,
 } from "./fetch";
 
@@ -46,32 +44,45 @@ function latestWorldBankValue(worldBankResponse: WorldBankResponse) {
   return latestRow?.value ?? null;
 }
 
-function latestAqi(openAqResponse: OpenAQResponse) {
-  const value = openAqResponse?.results?.[0]?.measurements?.[0]?.value;
-  return typeof value === "number" ? value : null;
-}
-
 type LocationPoint = { lat: number; lon: number };
 const locationCache = new Map<string, Promise<LocationPoint | null>>();
+
+function normalizeLocationLabel(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function titleCaseLocation(value: string) {
+  return value
+    .trim()
+    .split(/\s+/)
+    .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1).toLowerCase())
+    .join(" ");
+}
 
 async function resolveLocationPoint({
   state,
   district,
 }: EvaluationProviderContext): Promise<LocationPoint | null> {
-  const normalizedDistrict = (district ?? "").trim().toLowerCase();
-  const key = `${state}::${normalizedDistrict || "_state_"}`;
+  const normalizedState = normalizeLocationLabel(state);
+  const normalizedDistrict = normalizeLocationLabel(district ?? "");
+  const key = `${normalizedState}::${normalizedDistrict || "_state_"}`;
   const existing = locationCache.get(key);
   if (existing) return existing;
 
   const request = (async () => {
+    const stateQueries = [state.trim(), titleCaseLocation(state)];
+    const districtQueries = district
+      ? [district.trim(), titleCaseLocation(district)]
+      : [];
+
     const queries = district
       ? [
-          `${district}, ${state}, India`,
-          `${district}, India`,
-          `${state}, India`,
-          "India",
+          ...districtQueries.flatMap((districtLabel) =>
+            stateQueries.map((stateLabel) => `${districtLabel}, ${stateLabel}, India`)
+          ),
+          ...stateQueries.map((stateLabel) => `${stateLabel}, India`),
         ]
-      : [`${state}, India`, "India"];
+      : [...stateQueries.map((stateLabel) => `${stateLabel}, India`)];
 
     for (const query of queries) {
       const response = await fetchGeocodeForLocation(query);
@@ -89,13 +100,6 @@ async function resolveLocationPoint({
 }
 
 async function fetchAqiSignal(context: EvaluationProviderContext) {
-  if (context.district) {
-    const cityAqi = await fetchAirQuality(context.district)
-      .then((response) => latestAqi(response))
-      .catch(() => null);
-    if (cityAqi !== null) return cityAqi;
-  }
-
   const point = await resolveLocationPoint(context);
   if (!point) return null;
 

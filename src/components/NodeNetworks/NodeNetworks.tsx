@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SelectionState } from "../../types/geo";
-import { EvaluationReferenceIndex } from "../../constants/indicators/evaludation-reference-index";
 import {
   useDistrictEvaluation,
   useStateEvaluation,
 } from "../../services/evaluation/services";
-import type { DistrictEvaluation } from "../../types/evaluation";
+import {
+  networksDataByStateAndDistrict,
+  normalizeKey,
+  type NetworkInfo,
+} from "./networkData";
+import {
+  useNodeNetworkLayout,
+  type DragOffset,
+} from "./useNodeNetworkLayout";
 import "./NodeNetworks.css";
 
 type NodeNetworksProps = {
@@ -14,237 +21,10 @@ type NodeNetworksProps = {
   selectionState: SelectionState;
 };
 
-type NetworkInfo = {
-  name: string;
-  nodes: number | null;
-  indicators: { name: string; score: number | null }[];
-};
-
-type DragOffset = { x: number; y: number };
-type CategoryItem = DistrictEvaluation["evaluation"][number];
-type EvaluationReferenceItem = (typeof EvaluationReferenceIndex)[number];
-
-type PositionedNetwork = NetworkInfo & {
+type NetworkCard = NetworkInfo & {
   key: string;
-  side: "left" | "right";
+  indicatorsWithData: number;
   hasData: boolean;
-  nodeX: number;
-  nodeY: number;
-  nodeStyle: React.CSSProperties;
-};
-
-const normalizeKey = (value: string) =>
-  value.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
-
-const indicatorNameAliases = new Map<string, string>([
-  ["median income index", "Median income (PPP-adjusted)"],
-  ["employment rate", "Employment rate / job market depth"],
-  ["income equality index", "Income inequality (Gini coefficient)"],
-  ["housing affordability", "Housing affordability index"],
-  ["life expectancy index", "Life expectancy"],
-  ["infant mortality rate", "Infant mortality rate"],
-  ["healthcare access", "Access to primary & emergency care"],
-  ["air quality index score", "Air quality index (AQI)"],
-  ["mental health support", "Mental health support availability"],
-  ["literacy rate", "Literacy rate"],
-  ["crime rate score", "Violent crime rate"],
-  ["police trust index", "Police trust levels"],
-  ["judicial efficiency", "Judicial efficiency"],
-  ["public transport coverage", "Public transport coverage"],
-  ["internet reliability", "Internet speed & reliability"],
-  ["road quality index", "Road quality & congestion index"],
-]);
-
-const normalizeIndicatorLabel = (name: string) =>
-  indicatorNameAliases.get(normalizeKey(name)) ?? name;
-
-const referenceIndicatorsByCategory = EvaluationReferenceIndex.reduce(
-  (map, category) => {
-    map.set(
-      category.label.toLowerCase(),
-      category.indicators.map((indicator) => indicator.label)
-    );
-    return map;
-  },
-  new Map<string, string[]>()
-);
-
-const sortIndicatorsByReference = (
-  categoryName: string,
-  indicators: { name: string; score: number | null }[]
-) => {
-  const referenceIndicators =
-    referenceIndicatorsByCategory.get(categoryName.toLowerCase()) ?? [];
-  const indicatorIndexMap = new Map(
-    referenceIndicators.map((label, index) => [normalizeKey(label), index])
-  );
-
-  return [...indicators].sort((a, b) => {
-    const aIndex =
-      indicatorIndexMap.get(normalizeKey(normalizeIndicatorLabel(a.name))) ??
-      Number.MAX_SAFE_INTEGER;
-    const bIndex =
-      indicatorIndexMap.get(normalizeKey(normalizeIndicatorLabel(b.name))) ??
-      Number.MAX_SAFE_INTEGER;
-    if (aIndex === bIndex) {
-      return a.name.localeCompare(b.name);
-    }
-    return aIndex - bIndex;
-  });
-};
-
-const toCategoryNode = (category: CategoryItem): NetworkInfo => {
-  const numericIndicators = category.indicators.filter(
-    (indicator) => typeof indicator.score === "number"
-  );
-  const totalScore = category.indicators.reduce(
-    (sum, indicator) =>
-      sum + (typeof indicator.score === "number" ? indicator.score : 0),
-    0
-  );
-
-  return {
-    name: category.category,
-    nodes:
-      numericIndicators.length > 0
-        ? Math.round(totalScore / numericIndicators.length)
-        : null,
-    indicators: sortIndicatorsByReference(category.category, category.indicators),
-  };
-};
-
-const categoryIndexByLabel = EvaluationReferenceIndex.reduce(
-  (indexMap, referenceCategory, index) => {
-    indexMap.set(referenceCategory.label.toLowerCase(), index);
-    return indexMap;
-  },
-  new Map<string, number>()
-);
-
-const orderedCategories = EvaluationReferenceIndex.map(
-  (item): EvaluationReferenceItem["label"] => item.label
-);
-
-const sortByEvaluationReference = (a: NetworkInfo, b: NetworkInfo) => {
-  const aIndex =
-    categoryIndexByLabel.get(a.name.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
-  const bIndex =
-    categoryIndexByLabel.get(b.name.toLowerCase()) ?? Number.MAX_SAFE_INTEGER;
-  return aIndex - bIndex;
-};
-
-const networksDataByStateAndDistrict = (
-  sourceData: DistrictEvaluation[],
-  selectedState: string,
-  selectedDistrict?: string
-): NetworkInfo[] => {
-  if (!selectedState) return [];
-
-  const state = selectedState.toLowerCase();
-  const district = selectedDistrict?.toLowerCase();
-
-  const stateRows = sourceData.filter((item) => item.state === state);
-  if (stateRows.length === 0) return [];
-
-  if (district) {
-    const districtRow = stateRows.find((item) => item.district === district);
-    if (!districtRow) return [];
-
-    const categoryByLabel = new Map(
-      districtRow.evaluation.map((category) => [
-        category.category.toLowerCase(),
-        toCategoryNode(category),
-      ])
-    );
-
-    return orderedCategories
-      .map((categoryLabel) => categoryByLabel.get(categoryLabel.toLowerCase()))
-      .filter((category): category is NetworkInfo => Boolean(category));
-  }
-
-  const categoryAccumulator = new Map<
-    string,
-    {
-      total: number;
-      count: number;
-      indicators: Map<
-        string,
-        { label: string; total: number; count: number; missing: number }
-      >;
-    }
-  >();
-
-  stateRows.forEach((row) => {
-    row.evaluation.forEach((category) => {
-      const categoryNode = toCategoryNode(category);
-      const existing = categoryAccumulator.get(categoryNode.name);
-
-      if (existing) {
-        if (typeof categoryNode.nodes === "number") {
-          existing.total += categoryNode.nodes;
-          existing.count += 1;
-        }
-
-        categoryNode.indicators.forEach((indicator) => {
-          const indicatorKey = normalizeKey(normalizeIndicatorLabel(indicator.name));
-          const matchedIndicator = existing.indicators.get(indicatorKey);
-          if (matchedIndicator) {
-            if (typeof indicator.score === "number") {
-              matchedIndicator.total += indicator.score;
-              matchedIndicator.count += 1;
-            } else {
-              matchedIndicator.missing += 1;
-            }
-            return;
-          }
-
-          existing.indicators.set(indicatorKey, {
-            label: normalizeIndicatorLabel(indicator.name),
-            total: typeof indicator.score === "number" ? indicator.score : 0,
-            count: typeof indicator.score === "number" ? 1 : 0,
-            missing: typeof indicator.score === "number" ? 0 : 1,
-          });
-        });
-      } else {
-        const indicators = new Map<
-          string,
-          { label: string; total: number; count: number; missing: number }
-        >();
-
-        categoryNode.indicators.forEach((indicator) => {
-          const indicatorLabel = normalizeIndicatorLabel(indicator.name);
-          indicators.set(normalizeKey(indicatorLabel), {
-            label: indicatorLabel,
-            total: typeof indicator.score === "number" ? indicator.score : 0,
-            count: typeof indicator.score === "number" ? 1 : 0,
-            missing: typeof indicator.score === "number" ? 0 : 1,
-          });
-        });
-
-        categoryAccumulator.set(categoryNode.name, {
-          total: typeof categoryNode.nodes === "number" ? categoryNode.nodes : 0,
-          count: typeof categoryNode.nodes === "number" ? 1 : 0,
-          indicators,
-        });
-      }
-    });
-  });
-
-  return Array.from(categoryAccumulator.entries())
-    .map(([name, stats]) => {
-      const indicators = Array.from(stats.indicators.values()).map((indicator) => ({
-        name: indicator.label,
-        score:
-          indicator.count > 0 ? Math.round(indicator.total / indicator.count) : null,
-      }));
-
-      return {
-        name,
-        nodes: stats.count > 0 ? Math.round(stats.total / stats.count) : null,
-        indicators: sortIndicatorsByReference(name, indicators),
-      };
-    })
-    .sort(sortByEvaluationReference);
 };
 
 const NodeNetworks = ({
@@ -258,22 +38,26 @@ const NodeNetworks = ({
   }));
   const [expandedParentKey, setExpandedParentKey] = useState<string | null>(null);
   const [isMobileIndicatorOpen, setIsMobileIndicatorOpen] = useState(true);
+  const [isMobileDockVisible, setIsMobileDockVisible] = useState(true);
   const [dragOffsets, setDragOffsets] = useState<Record<string, DragOffset>>({});
   const [draggingNodeKey, setDraggingNodeKey] = useState<string | null>(null);
+  const dragConsumedClickRef = useRef(false);
+  const dragOffsetsRef = useRef<Record<string, DragOffset>>({});
   const dragSessionRef = useRef<{
     key: string;
     startX: number;
     startY: number;
     baseX: number;
     baseY: number;
+    hasExceededThreshold: boolean;
   } | null>(null);
 
   const isDistrictMode = Boolean(selectionState.selectedDistrict);
   const accentColor = isDistrictMode ? "#22c55e" : "#fbbf24";
   const accentRgb = isDistrictMode ? "34, 197, 94" : "251, 191, 36";
 
-  const selectedState = (selectionState.selectedState ?? "").toLowerCase();
-  const selectedDistrict = (selectionState.selectedDistrict ?? "").toLowerCase();
+  const selectedState = selectionState.selectedState ?? "";
+  const selectedDistrict = selectionState.selectedDistrict ?? "";
 
   const {
     data: liveDistrictEvaluation,
@@ -321,19 +105,40 @@ const NodeNetworks = ({
     setDraggingNodeKey(null);
   }, []);
 
+  useEffect(() => {
+    dragOffsetsRef.current = dragOffsets;
+  }, [dragOffsets]);
+
   const handleGlobalPointerMove = useCallback((event: PointerEvent) => {
     const session = dragSessionRef.current;
     if (!session) return;
 
     const deltaX = event.clientX - session.startX;
     const deltaY = event.clientY - session.startY;
+
+    if (!session.hasExceededThreshold) {
+      const dragDistance = Math.hypot(deltaX, deltaY);
+      if (dragDistance < 4) {
+        return;
+      }
+      session.hasExceededThreshold = true;
+      dragConsumedClickRef.current = true;
+      setDraggingNodeKey(session.key);
+    }
+
     const nextOffset = { x: session.baseX + deltaX, y: session.baseY + deltaY };
 
     setDragOffsets((prev) => ({ ...prev, [session.key]: nextOffset }));
   }, []);
 
   const handleGlobalPointerUp = useCallback(() => {
+    const didDrag = Boolean(dragSessionRef.current?.hasExceededThreshold);
     stopDragging();
+    if (didDrag) {
+      window.setTimeout(() => {
+        dragConsumedClickRef.current = false;
+      }, 0);
+    }
   }, [stopDragging]);
 
   useEffect(() => {
@@ -360,190 +165,98 @@ const NodeNetworks = ({
       event.preventDefault();
       event.stopPropagation();
 
-      const existingOffset = dragOffsets[key] ?? { x: 0, y: 0 };
+      const existingOffset = dragOffsetsRef.current[key] ?? { x: 0, y: 0 };
       dragSessionRef.current = {
         key,
         startX: event.clientX,
         startY: event.clientY,
         baseX: existingOffset.x,
         baseY: existingOffset.y,
+        hasExceededThreshold: false,
       };
-      setDraggingNodeKey(key);
     },
-    [dragOffsets]
+    []
   );
 
-  const positionedNetworks = useMemo<PositionedNetwork[]>(() => {
-    const horizontalScale =
-      viewportSize.width < 480
-        ? 0.46
-        : viewportSize.width < 640
-          ? 0.58
-          : viewportSize.width < 768
-            ? 0.68
-            : viewportSize.width < 1024
-              ? 0.82
-              : 1;
-    const verticalScale =
-      viewportSize.height < 640 ? 0.7 : viewportSize.height < 820 ? 0.86 : 1;
-    const spreadScale = Math.min(horizontalScale, verticalScale);
-    const dataNetworks = networksData.filter((network) =>
-      network.indicators.some((indicator) => typeof indicator.score === "number")
-    );
-    const noDataNetworks = networksData.filter(
-      (network) =>
-        !network.indicators.some((indicator) => typeof indicator.score === "number")
-    );
-
-    const dataLeftCount = Math.ceil(dataNetworks.length / 2);
-    const dataRightCount = Math.floor(dataNetworks.length / 2);
-    const viewportHalf = viewportSize.width / 2;
-    const safePadding = viewportSize.width < 480 ? 8 : viewportSize.width < 768 ? 10 : 14;
-    const dataNodeHalfWidth =
-      viewportSize.width < 480 ? 73 : viewportSize.width < 768 ? 82 : viewportSize.width < 900 ? 97 : 112;
-    const noDataNodeHalfWidth =
-      viewportSize.width < 480 ? 62 : viewportSize.width < 768 ? 70 : viewportSize.width < 900 ? 80 : 88;
-    const maxDataOffset = Math.max(32, viewportHalf - dataNodeHalfWidth - safePadding);
-    const maxNoDataOffset = Math.max(28, viewportHalf - noDataNodeHalfWidth - safePadding);
-    const leftBaseX = (isDistrictMode ? -250 : -290) * horizontalScale;
-    const rightBaseX = (isDistrictMode ? 290 : 340) * horizontalScale;
-    const leftX = -Math.min(Math.abs(leftBaseX), maxDataOffset);
-    const rightX = Math.min(Math.abs(rightBaseX), maxDataOffset);
-    const dataVerticalSpread = (isDistrictMode ? 360 : 430) * spreadScale;
-    const noDataBaseX = (isDistrictMode ? -460 : -520) * horizontalScale;
-    const noDataX = -Math.min(Math.abs(noDataBaseX), maxNoDataOffset);
-    const noDataVerticalSpread = (isDistrictMode ? 260 : 320) * spreadScale;
-    let dataLeftIndex = 0;
-    let dataRightIndex = 0;
-
-    const clampNodeX = (value: number, hasData: boolean) => {
-      const halfWidth = hasData ? dataNodeHalfWidth : noDataNodeHalfWidth;
-      const minX = -(viewportHalf - halfWidth - safePadding);
-      const maxX = viewportHalf - halfWidth - safePadding;
-      return Math.min(maxX, Math.max(minX, value));
-    };
-
-    const arrangedData = dataNetworks.map((network, index) => {
-      const nodeKey = `${network.name}-${index}`;
-      const isLeft = index % 2 === 0 && dataLeftCount > 0;
-      const sideTotal = isLeft ? dataLeftCount : dataRightCount;
-      const sideIndex = isLeft ? dataLeftIndex++ : dataRightIndex++;
-      const step = sideTotal > 1 ? dataVerticalSpread / (sideTotal - 1) : 0;
-      const baseY = sideTotal > 1 ? -dataVerticalSpread / 2 + sideIndex * step : 0;
-      const baseX = isLeft ? leftX : rightX;
-      const dragOffset = dragOffsets[nodeKey] ?? { x: 0, y: 0 };
-      const nodeX = clampNodeX(baseX + dragOffset.x, true);
-      const nodeY = baseY + dragOffset.y;
-
-      return {
-        ...network,
-        key: nodeKey,
-        side: (isLeft ? "left" : "right") as "left" | "right",
-        hasData: true,
-        nodeX,
-        nodeY,
-        nodeStyle: {
-          transform: `translate(calc(-50% + ${nodeX}px), calc(-50% + ${nodeY}px))`,
-        },
-      };
-    });
-
-    const arrangedNoData = noDataNetworks.map((network, index) => {
-      const nodeKey = `${network.name}-na-${index}`;
-      const step =
-        noDataNetworks.length > 1
-          ? noDataVerticalSpread / (noDataNetworks.length - 1)
-          : 0;
-      const baseY =
-        noDataNetworks.length > 1
-          ? -noDataVerticalSpread / 2 + index * step
-          : 0;
-      const dragOffset = dragOffsets[nodeKey] ?? { x: 0, y: 0 };
-      const nodeX = clampNodeX(noDataX + dragOffset.x, false);
-      const nodeY = baseY + dragOffset.y;
-
-      return {
-        ...network,
-        key: nodeKey,
-        side: "left" as const,
-        hasData: false,
-        nodeX,
-        nodeY,
-        nodeStyle: {
-          transform: `translate(calc(-50% + ${nodeX}px), calc(-50% + ${nodeY}px))`,
-        },
-      };
-    });
-
-    return [...arrangedData, ...arrangedNoData];
-  }, [dragOffsets, isDistrictMode, networksData, viewportSize.height, viewportSize.width]);
-
-  const subnodeLayout = useMemo(
-    () => ({
-      startOffsetX:
-        viewportSize.width < 480
-          ? 132
-          : viewportSize.width < 768
-            ? 152
-            : viewportSize.width < 1024
-              ? 164
-              : 184,
-      columnGap:
-        viewportSize.width < 480
-          ? 116
-          : viewportSize.width < 768
-            ? 132
-            : viewportSize.width < 1024
-              ? 148
-              : 172,
-      rowGap:
-        viewportSize.width < 480
-          ? 46
-          : viewportSize.width < 768
-            ? 50
-            : viewportSize.width < 1024
-              ? 52
-              : 56,
-    }),
-    [viewportSize.width]
-  );
-
-  const isMobileLayout = viewportSize.width <= 767;
-
-  const mobileNetworkCards = useMemo(
+  const networkCards = useMemo<NetworkCard[]>(
     () =>
-      networksData.map((network, index) => ({
-        ...network,
-        key: `${network.name}-${index}`,
-        indicatorsWithData: network.indicators.filter(
+      networksData.map((network, index) => {
+        const indicatorsWithData = network.indicators.filter(
           (indicator) => typeof indicator.score === "number"
-        ).length,
-      })),
+        ).length;
+        return {
+          ...network,
+          key: `${normalizeKey(network.name)}-${index}`,
+          indicatorsWithData,
+          hasData: indicatorsWithData > 0,
+        };
+      }),
     [networksData]
   );
 
+  const { positionedNetworks, subnodeLayout } = useNodeNetworkLayout({
+    networkCards,
+    dragOffsets,
+    isDistrictMode,
+    viewportSize,
+  });
+
+  const isMobileLayout = viewportSize.width <= 767;
+
   useEffect(() => {
-    if (!expandedParentKey && mobileNetworkCards.length > 0) {
-      setExpandedParentKey(mobileNetworkCards[0].key);
+    const validBaseKeys = new Set(networkCards.map((network) => network.key));
+    setDragOffsets((previous) => {
+      let hasChanges = false;
+      const nextOffsets: Record<string, DragOffset> = {};
+
+      Object.entries(previous).forEach(([offsetKey, offsetValue]) => {
+        const isBaseKey = validBaseKeys.has(offsetKey);
+        const subSeparatorIndex = offsetKey.indexOf("-sub-");
+        const isSubKey =
+          subSeparatorIndex !== -1 &&
+          validBaseKeys.has(offsetKey.slice(0, subSeparatorIndex));
+
+        if (isBaseKey || isSubKey) {
+          nextOffsets[offsetKey] = offsetValue;
+        } else {
+          hasChanges = true;
+        }
+      });
+
+      return hasChanges ? nextOffsets : previous;
+    });
+  }, [networkCards]);
+
+  useEffect(() => {
+    if (!expandedParentKey) return;
+    if (!networkCards.some((network) => network.key === expandedParentKey)) {
+      setExpandedParentKey(null);
+    }
+  }, [expandedParentKey, networkCards]);
+
+  useEffect(() => {
+    if (!isMobileLayout) return;
+
+    if (!expandedParentKey && networkCards.length > 0) {
+      setExpandedParentKey(networkCards[0].key);
       return;
     }
-
-    if (
-      expandedParentKey &&
-      !mobileNetworkCards.some((network) => network.key === expandedParentKey)
-    ) {
-      setExpandedParentKey(mobileNetworkCards[0]?.key ?? null);
-    }
-  }, [expandedParentKey, mobileNetworkCards]);
+  }, [expandedParentKey, networkCards, isMobileLayout]);
 
   useEffect(() => {
     if (!isMobileLayout) return;
     setIsMobileIndicatorOpen(true);
   }, [expandedParentKey, isMobileLayout]);
 
+  useEffect(() => {
+    if (isMobileLayout) {
+      setIsMobileDockVisible(true);
+    }
+  }, [isMobileLayout]);
+
   const selectedMobileNetwork = useMemo(
-    () => mobileNetworkCards.find((network) => network.key === expandedParentKey) ?? null,
-    [expandedParentKey, mobileNetworkCards]
+    () => networkCards.find((network) => network.key === expandedParentKey) ?? null,
+    [expandedParentKey, networkCards]
   );
 
   const sortedMobileIndicators = useMemo(() => {
@@ -562,11 +275,8 @@ const NodeNetworks = ({
   }, [selectedMobileNetwork]);
 
   const activeLinksCount = useMemo(
-    () =>
-      networksData.filter((network) =>
-        network.indicators.some((indicator) => typeof indicator.score === "number")
-      ).length,
-    [networksData]
+    () => networkCards.filter((network) => network.hasData).length,
+    [networkCards]
   );
 
   const selectedLabel =
@@ -615,7 +325,7 @@ const NodeNetworks = ({
                   const isSecondary = hasPrimaryFocus && !isExpanded;
                   const parentLayerStyle: React.CSSProperties = {
                     ...network.nodeStyle,
-                    zIndex: isExpanded ? 12 : isSecondary ? 3 : 6,
+                    zIndex: isExpanded ? 16 : isSecondary ? 14 : 15,
                   };
 
                   return (
@@ -631,11 +341,19 @@ const NodeNetworks = ({
                           } ${
                             network.hasData ? "has-data" : "no-data"
                           }`}
-                          onClick={() =>
+                          onPointerDown={(event) => {
+                            event.stopPropagation();
+                          }}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (dragConsumedClickRef.current) {
+                              dragConsumedClickRef.current = false;
+                              return;
+                            }
                             setExpandedParentKey((current) =>
                               current === network.key ? null : network.key
-                            )
-                          }
+                            );
+                          }}
                         >
                           <div
                             className="network-node-header"
@@ -690,7 +408,7 @@ const NodeNetworks = ({
                                 className="network-subnode"
                                 style={{
                                   transform: `translate(calc(-50% + ${network.nodeX + subX}px), calc(-50% + ${network.nodeY + subY}px))`,
-                                  zIndex: 13,
+                                  zIndex: 10,
                                 }}
                               >
                                 <div
@@ -717,79 +435,125 @@ const NodeNetworks = ({
             )}
 
             {isMobileLayout && (
-              <div className="mobile-network-dock">
-                <p className="mobile-network-summary">
-                  {activeLoading
-                    ? "Refreshing network indicators..."
-                    : activeLinksCount > 0
-                      ? `${activeLinksCount} categories with data for ${selectedLabel}`
-                      : `No network data for ${selectedLabel}`}
-                </p>
-                <div className="mobile-network-scroll">
-                  {mobileNetworkCards.map((network) => {
-                    const isActive = selectedMobileNetwork?.key === network.key;
-                    return (
-                      <button
-                        key={network.key}
-                        type="button"
-                        className={`mobile-network-card ${isActive ? "active" : ""}`}
-                        onClick={() => setExpandedParentKey(network.key)}
-                      >
-                        <span className="mobile-network-card-title">{network.name}</span>
-                        <span className="mobile-network-card-score">
-                          {typeof network.nodes === "number" ? network.nodes : "N/A"}
-                        </span>
-                        <span className="mobile-network-card-meta">
-                          {network.indicatorsWithData}/{network.indicators.length} indicators
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {selectedMobileNetwork && (
-                  <div className="mobile-network-indicators">
-                    <div className="mobile-indicator-header">
-                      <p className="mobile-indicator-heading">{selectedMobileNetwork.name}</p>
-                      <button
-                        type="button"
-                        className="mobile-indicator-close-btn"
-                        onClick={() => setIsMobileIndicatorOpen((prev) => !prev)}
-                        aria-label={isMobileIndicatorOpen ? "Close indicators" : "Open indicators"}
-                      >
-                        {isMobileIndicatorOpen ? "Hide" : "Show"}
-                      </button>
-                    </div>
-                    {isMobileIndicatorOpen && (
-                    <div className="mobile-indicator-list">
-                      {sortedMobileIndicators.map((indicator, indicatorIndex) => (
-                        <div
-                          className="mobile-indicator-item"
-                          key={`${indicator.name}-${indicatorIndex}`}
+              <>
+                {isMobileDockVisible && (
+                  <div className="mobile-network-dock">
+                    <div className="mobile-network-dock-legend">
+                      <div className="mobile-network-dock-header">
+                        <p className="network-legend-title">Active Networks</p>
+                        <button
+                          type="button"
+                          className="mobile-network-dock-toggle-btn"
+                          onClick={() => setIsMobileDockVisible(false)}
+                          aria-label="Close dock"
                         >
-                          <span className="mobile-indicator-name">{indicator.name}</span>
-                          <span className="mobile-indicator-score">
-                            {typeof indicator.score === "number" ? indicator.score : "N/A"}
-                          </span>
-                        </div>
-                      ))}
+                          Close
+                        </button>
+                      </div>
+                      <p className="network-legend-subtitle">
+                        {activeLoading
+                          ? `Loading network data for ${selectedLabel}...`
+                          : activeLinksCount > 0
+                            ? `${activeLinksCount} links with data for ${selectedLabel}`
+                            : `No network data for ${selectedLabel}`}
+                      </p>
+                      <p className="network-legend-source">Data Source: {dataSourceName}</p>
                     </div>
+                    {selectedMobileNetwork && (
+                      <div className="mobile-network-indicators">
+                        <div className="mobile-indicator-header">
+                          <p className="mobile-indicator-heading">{selectedMobileNetwork.name}</p>
+                          <button
+                            type="button"
+                            className="mobile-indicator-close-btn"
+                            onClick={() => setIsMobileIndicatorOpen((prev) => !prev)}
+                            aria-label={isMobileIndicatorOpen ? "Close indicators" : "Open indicators"}
+                          >
+                            {isMobileIndicatorOpen ? "Hide" : "Show"}
+                          </button>
+                        </div>
+                        {isMobileIndicatorOpen && (
+                        <div className="mobile-indicator-list">
+                          {sortedMobileIndicators.map((indicator, indicatorIndex) => (
+                            <div
+                              className="mobile-indicator-item"
+                              key={`${indicator.name}-${indicatorIndex}`}
+                            >
+                              <span className="mobile-indicator-name">{indicator.name}</span>
+                              <span className="mobile-indicator-score">
+                                {typeof indicator.score === "number" ? indicator.score : "N/A"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 )}
-              </div>
+                <div className="mobile-network-footer">
+                  <p className="mobile-network-summary">
+                    {activeLoading
+                      ? "Refreshing network indicators..."
+                      : activeLinksCount > 0
+                        ? `${activeLinksCount} categories with data for ${selectedLabel}`
+                        : `No network data for ${selectedLabel}`}
+                  </p>
+                  {!isMobileDockVisible && (
+                    <button
+                      type="button"
+                      className="mobile-network-footer-open-btn"
+                      onClick={() => setIsMobileDockVisible(true)}
+                    >
+                      Open details
+                    </button>
+                  )}
+                  <div className="mobile-network-scroll">
+                    {networkCards.sort((a,b) => {
+                      const aScore = a.nodes ?? Number.NEGATIVE_INFINITY;
+                      const bScore = b.nodes ?? Number.NEGATIVE_INFINITY;
+                      if (aScore === bScore) return a.name.localeCompare(b.name);
+                      return bScore - aScore;
+                    }).map((network) => {
+                      const isActive = selectedMobileNetwork?.key === network.key;
+                      return (
+                        <button
+                          key={network.key}
+                          type="button"
+                          className={`mobile-network-card ${isActive ? "active" : ""}`}
+                          onClick={() => {
+                            setExpandedParentKey(network.key);
+                            setIsMobileDockVisible(true);
+                          }}
+                        >
+                          <span className="mobile-network-card-title">{network.name}</span>
+                          <span className="mobile-network-card-score">
+                            {typeof network.nodes === "number" ? network.nodes : "N/A"}
+                          </span>
+                          <span className="mobile-network-card-meta">
+                            {network.indicatorsWithData}/{network.indicators.length} indicators
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
             )}
 
-            <div className={`network-legend ${isMobileLayout ? "mobile-network-footer" : ""}`}>
-              <p className="network-legend-title">Active Networks</p>
-              <p className="network-legend-subtitle">
-                {activeLoading
-                  ? `Loading network data for ${selectedLabel}...`
-                  : activeLinksCount > 0
-                    ? `${activeLinksCount} links with data for ${selectedLabel}`
-                    : `No network data for ${selectedLabel}`}
-              </p>
-              <p className="network-legend-source">Data Source: {dataSourceName}</p>
-            </div>
+            {!isMobileLayout && (
+              <div className="network-legend">
+                <p className="network-legend-title">Active Networks</p>
+                <p className="network-legend-subtitle">
+                  {activeLoading
+                    ? `Loading network data for ${selectedLabel}...`
+                    : activeLinksCount > 0
+                      ? `${activeLinksCount} links with data for ${selectedLabel}`
+                      : `No network data for ${selectedLabel}`}
+                </p>
+                <p className="network-legend-source">Data Source: {dataSourceName}</p>
+              </div>
+            )}
             {activeLoading && (
               <div className="network-loading-indicator">
                 <span className="network-loading-spinner" />

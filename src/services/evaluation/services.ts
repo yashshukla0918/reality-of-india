@@ -67,10 +67,25 @@ function hasAtLeastOneIndicatorScore(data: DistrictEvaluation) {
   );
 }
 
+function hasLocationSpecificSignals(
+  signals: Partial<Record<EvaluationSignalKey, EvaluationSignalValue>>
+) {
+  const locationKeys: EvaluationSignalKey[] = [
+    "aqi",
+    "temperature",
+    "humidity",
+    "windSpeed",
+  ];
+
+  return locationKeys.some((key) => signals[key] !== null && signals[key] !== undefined);
+}
+
 async function evaluateForLocation(
   state: string,
   district?: string
 ): Promise<DistrictEvaluationResponse> {
+  const canonicalState = state.trim();
+  const canonicalDistrict = (district ?? "").trim();
   const normalizedState = normalizeLocation(state);
   const normalizedDistrict = normalizeLocation(district ?? "");
 
@@ -98,8 +113,8 @@ async function evaluateForLocation(
     const providerResults = await Promise.allSettled(
       evaluationProviders.map((provider) =>
         provider.fetch({
-          state: normalizedState,
-          district: normalizedDistrict || undefined,
+          state: canonicalState,
+          district: canonicalDistrict || undefined,
         })
       )
     );
@@ -123,13 +138,18 @@ async function evaluateForLocation(
     });
 
     const result = buildEvaluationData({
-      state: normalizedState,
-      district: normalizedDistrict || normalizedState,
+      state: canonicalState,
+      district: canonicalDistrict || canonicalState,
       signals,
     });
 
     if (!hasAtLeastOneIndicatorScore(result) && failures.length === 0) {
       failures.push("No indicators could be derived from upstream sources.");
+    }
+    if (!hasLocationSpecificSignals(signals)) {
+      failures.push(
+        "Location-specific signals unavailable (AQI/weather). Results may reflect national defaults."
+      );
     }
 
     const error = toEvaluationError(failures);

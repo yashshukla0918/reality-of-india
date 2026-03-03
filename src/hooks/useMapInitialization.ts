@@ -7,19 +7,19 @@ export function useMapInitialization({ isDarkMode }: { isDarkMode: boolean }) {
   const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
-    if (isInitialized || mapRef.current) return;
+    if (mapRef.current) return;
 
-    const label = isDarkMode ? "dark" : "light";
+    const initialLabel = isDarkMode ? "dark" : "light";
     const map = L.map("map", {
       renderer: L.canvas(),
       preferCanvas: true,
       minZoom: 4,
       maxZoom: 12,
       attributionControl: false,
-    }).setView([22.9734, 78.6569], 5);
+    }).setView([18.9734, 80.6569], 4);
 
     const tileLayer = L.tileLayer(
-      `https://{s}.basemaps.cartocdn.com/${label}_all/{z}/{x}/{y}{r}.png`,
+      `https://{s}.basemaps.cartocdn.com/${initialLabel}_all/{z}/{x}/{y}{r}.png`,
       {
         attribution: "© CartoDB",
       }
@@ -29,16 +29,22 @@ export function useMapInitialization({ isDarkMode }: { isDarkMode: boolean }) {
     tileLayerRef.current = tileLayer;
     mapRef.current = map;
     setIsInitialized(true);
-  }, [isInitialized, isDarkMode]);
+
+    return () => {
+      tileLayerRef.current = null;
+      mapRef.current?.remove();
+      mapRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
-    if (!isInitialized || !tileLayerRef.current) return;
+    if (!tileLayerRef.current) return;
 
     const label = isDarkMode ? "dark" : "light";
     tileLayerRef.current.setUrl(
       `https://{s}.basemaps.cartocdn.com/${label}_all/{z}/{x}/{y}{r}.png`
     );
-  }, [isDarkMode, isInitialized]);
+  }, [isDarkMode]);
 
   return { mapRef, isInitialized };
 }

@@ -14,7 +14,7 @@
 }
 
 .search-modal {
-  background: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(15, 23, 42, 0.15);
   border-radius: 16px;
@@ -86,6 +86,65 @@
   gap: 8px;
 }
 
+.voice-search-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.voice-search-btn {
+  width: 58px;
+  height: 58px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.6);
+  color: #111827;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease, background 0.2s ease;
+}
+
+.voice-search-btn:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.02);
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16);
+}
+
+.voice-search-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.voice-search-btn.listening {
+  background: rgba(255, 255, 255, 0.9);
+  color: #dc2626;
+  animation: voice-pulse 1.2s ease-in-out infinite;
+}
+
+.voice-search-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.voice-search-label {
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+@keyframes voice-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(255, 255, 255, 0.15);
+  }
+}
+
 .search-modal-input {
   flex: 1;
   padding: 12px 16px;
@@ -105,13 +164,13 @@
 .search-modal-input:focus {
   outline: none;
   background: rgba(255, 255, 255, 0.95);
-  border-color: #2563eb;
+  border-color: #0d0e10;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
 }
 
 .search-modal-button {
   padding: 12px 24px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #303132 0%, #25282e 100%);
   border: 1px solid rgba(59, 130, 246, 0.4);
   border-radius: 8px;
   color: #f1f5f9;
@@ -254,6 +313,11 @@
 
   .search-modal-button {
     width: 100%;
+  }
+
+  .voice-search-row {
+    justify-content: center;
+    text-align: center;
   }
 
   .search-results-list {
